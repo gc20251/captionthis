@@ -1,0 +1,5 @@
+# Minimal config so `supabase functions deploy` knows about the function.
+project_id = "contact-sheet"
+
+[functions.generate-captions]
+verify_jwt = false

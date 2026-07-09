@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+  }
+  .font-display {
+    font-family: "Fraunces", Georgia, serif;
+    font-optical-sizing: auto;
+  }
+  .font-mono {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

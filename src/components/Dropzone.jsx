@@ -1,0 +1,75 @@
+// src/components/Dropzone.jsx
+import { useCallback, useRef, useState } from "react";
+
+const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+export default function Dropzone({ onSelect, disabled }) {
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef(null);
+
+  const handleFiles = useCallback(
+    (files) => {
+      const file = files?.[0];
+      if (!file) return;
+      if (!ACCEPTED.includes(file.type)) {
+        alert("Please use a JPEG, PNG, WebP, or GIF.");
+        return;
+      }
+      onSelect(file);
+    },
+    [onSelect]
+  );
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!disabled) setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (!disabled) handleFiles(e.dataTransfer.files);
+      }}
+      onClick={() => !disabled && inputRef.current?.click()}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && !disabled) inputRef.current?.click();
+      }}
+      className={`group relative flex aspect-[4/3] cursor-pointer flex-col items-center justify-center rounded-sm border transition-colors
+        ${dragging ? "border-amber bg-amber/5" : "border-line hover:border-amber/60"}
+        ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+    >
+      {/* corner frame marks — like registration marks on a print */}
+      <Corner className="left-3 top-3 border-l border-t" />
+      <Corner className="right-3 top-3 border-r border-t" />
+      <Corner className="bottom-3 left-3 border-b border-l" />
+      <Corner className="bottom-3 right-3 border-b border-r" />
+
+      <div className="flex h-12 w-12 items-center justify-center rounded-full border border-line text-amber transition-colors group-hover:border-amber/60">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <path d="M12 16V4m0 0L7 9m5-5l5 5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" strokeLinecap="round" />
+        </svg>
+      </div>
+      <p className="mt-4 font-display text-lg text-paper">Drop a photo to develop</p>
+      <p className="mt-1 font-mono text-xs uppercase tracking-widest text-muted">
+        JPEG · PNG · WebP · or click to browse
+      </p>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPTED.join(",")}
+        className="hidden"
+        onChange={(e) => handleFiles(e.target.files)}
+      />
+    </div>
+  );
+}
+
+function Corner({ className }) {
+  return <span className={`pointer-events-none absolute h-4 w-4 border-line ${className}`} />;
+}
