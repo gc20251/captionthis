@@ -55,7 +55,7 @@ export default function Dropzone({ onSelect, onError, disabled }) {
           <path d="M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2" strokeLinecap="round" />
         </svg>
       </div>
-      <p className="mt-4 font-display text-lg text-paper">Drop a photo to develop</p>
+      <p className="mt-4 font-display text-lg text-paper">Drop a photo here</p>
       <p className="mt-1 font-mono text-xs uppercase tracking-widest text-muted">
         JPEG · PNG · WebP · or click to browse
       </p>
