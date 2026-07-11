@@ -1,4 +1,4 @@
-# Contact Sheet — AI caption & metadata generator
+# CaptionThis — AI caption & metadata generator
 
 Drop in a photo → get three captions, accessible alt-text, and relevant hashtags,
 drafted by Claude from what's actually in the frame. Built as a portfolio piece:
@@ -67,7 +67,7 @@ Open the local URL, drop in a photo, pick a voice, hit **Generate**.
 ## Project structure
 
 ```
-caption-studio/
+captionthis/
 ├── index.html
 ├── package.json
 ├── tailwind.config.js          # darkroom palette (ink / paper / amber)

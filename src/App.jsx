@@ -69,7 +69,7 @@ export default function App() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
           <div className="flex items-center gap-3">
             <span className="h-2.5 w-2.5 rounded-full bg-amber" />
-            <span className="font-display text-lg tracking-tight">Contact Sheet</span>
+            <span className="font-display text-lg tracking-tight">CaptionThis</span>
           </div>
           <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted">
             caption · alt-text · tags

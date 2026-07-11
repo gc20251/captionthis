@@ -1,5 +1,5 @@
 # Minimal config so `supabase functions deploy` knows about the function.
-project_id = "contact-sheet"
+project_id = "captionthis"
 
 [functions.generate-captions]
 # verify_jwt stays false on purpose. The client authenticates with the *public*
