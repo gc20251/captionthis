@@ -18,12 +18,14 @@ export default function App() {
   const [status, setStatus] = useState("idle"); // idle | loading | done | error
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  const [selectError, setSelectError] = useState(null); // bad file type/size at pick time
 
   const onSelect = (f) => {
     setFile(f);
     setPreview(URL.createObjectURL(f));
     setResults(null);
     setError(null);
+    setSelectError(null);
     setStatus("idle");
   };
 
@@ -46,6 +48,7 @@ export default function App() {
     setPreview(null);
     setResults(null);
     setError(null);
+    setSelectError(null);
     setStatus("idle");
   };
 
@@ -94,7 +97,17 @@ export default function App() {
                 </button>
               </figure>
             ) : (
-              <Dropzone onSelect={onSelect} disabled={status === "loading"} />
+              <Dropzone
+                onSelect={onSelect}
+                onError={setSelectError}
+                disabled={status === "loading"}
+              />
+            )}
+
+            {selectError && !preview && (
+              <p role="alert" className="text-sm text-amber">
+                {selectError}
+              </p>
             )}
 
             {/* Tone selector */}

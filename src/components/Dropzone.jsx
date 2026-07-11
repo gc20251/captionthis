@@ -1,9 +1,8 @@
 // src/components/Dropzone.jsx
 import { useCallback, useRef, useState } from "react";
+import { ACCEPTED_TYPES, validateFile } from "../lib/image";
 
-const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-
-export default function Dropzone({ onSelect, disabled }) {
+export default function Dropzone({ onSelect, onError, disabled }) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef(null);
 
@@ -11,13 +10,15 @@ export default function Dropzone({ onSelect, disabled }) {
     (files) => {
       const file = files?.[0];
       if (!file) return;
-      if (!ACCEPTED.includes(file.type)) {
-        alert("Please use a JPEG, PNG, WebP, or GIF.");
+      try {
+        validateFile(file); // throws a human-readable message on bad type/size
+      } catch (err) {
+        onError?.(err.message);
         return;
       }
       onSelect(file);
     },
-    [onSelect]
+    [onSelect, onError]
   );
 
   return (
@@ -62,7 +63,7 @@ export default function Dropzone({ onSelect, disabled }) {
       <input
         ref={inputRef}
         type="file"
-        accept={ACCEPTED.join(",")}
+        accept={ACCEPTED_TYPES.join(",")}
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
