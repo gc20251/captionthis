@@ -8,7 +8,7 @@ export default {
         "ink-soft": "#1E1813", // raised surface
         paper: "#EDE6DA", // warm off-white text
         amber: "#E0913D", // safelight accent
-        muted: "#8A8276", // warm gray secondary text
+        muted: "#948C7F", // warm gray secondary text — 5.6:1 on ink, 5.3:1 on ink-soft (AA with headroom)
         line: "#2C2620", // subtle warm border
       },
       borderRadius: {

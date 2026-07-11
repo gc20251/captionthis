@@ -101,7 +101,7 @@ export default function App() {
                 />
                 <button
                   onClick={reset}
-                  className="absolute right-3 top-3 rounded-sm border border-line bg-ink/80 px-3 py-1 font-mono text-xs uppercase tracking-wider text-muted backdrop-blur transition-colors hover:border-amber/60 hover:text-amber"
+                  className="absolute right-3 top-3 rounded-sm border border-line bg-ink/80 px-3 py-1 font-mono text-xs uppercase tracking-wider text-muted backdrop-blur transition-colors hover:border-amber/60 hover:text-amber focus:outline-none focus-visible:ring-1 focus-visible:ring-amber"
                 >
                   Replace
                 </button>
@@ -150,7 +150,7 @@ export default function App() {
             <button
               onClick={run}
               disabled={!file || isLoading}
-              className="w-full rounded-sm bg-amber py-3 font-medium text-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="w-full rounded-sm bg-amber py-3 font-medium text-ink transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber focus-visible:ring-offset-2 focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-40"
             >
               {isLoading ? "Developing…" : currentResult ? "Regenerate" : "Generate"}
             </button>
@@ -173,7 +173,7 @@ export default function App() {
                 <p className="mt-2 text-sm text-muted">{error}</p>
                 <button
                   onClick={run}
-                  className="mt-4 rounded-sm border border-line px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-paper hover:border-amber/60 hover:text-amber"
+                  className="mt-4 rounded-sm border border-line px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-paper hover:border-amber/60 hover:text-amber focus:outline-none focus-visible:ring-1 focus-visible:ring-amber"
                 >
                   Try again
                 </button>
