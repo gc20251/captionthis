@@ -2,4 +2,10 @@
 project_id = "contact-sheet"
 
 [functions.generate-captions]
+# verify_jwt stays false on purpose. The client authenticates with the *public*
+# anon key, so JWT verification here would only reject requests that omit a key
+# the attacker can trivially read from the shipped bundle — it isn't real auth.
+# Abuse is instead contained in the function itself (origin allowlist + per-IP
+# rate limit + payload cap in index.ts) with an Anthropic console spend limit as
+# the hard backstop. See RISKS.md R1.
 verify_jwt = false
