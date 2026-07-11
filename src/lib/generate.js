@@ -13,18 +13,31 @@ export async function generateCaptions(file, tone) {
   // Error for unsupported/oversized/corrupt files.
   const { data, mediaType } = await prepareImage(file);
 
-  const res = await fetch(FUNCTION_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      Authorization: `Bearer ${ANON_KEY}`,
-    },
-    body: JSON.stringify({ image: data, mediaType, tone }),
-  });
+  let res;
+  try {
+    res = await fetch(FUNCTION_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ image: data, mediaType, tone }),
+    });
+  } catch {
+    // fetch rejects only on network-level failure (offline, DNS, blocked).
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
 
-  const body = await res.json();
+  // The function returns JSON on success and on error — but an outage or proxy
+  // can hand back HTML or an empty body, so don't let res.json() surface a raw
+  // "Unexpected end of JSON input" to the user.
+  const body = await res.json().catch(() => null);
+
   if (!res.ok) {
-    throw new Error(body.error || "Something went wrong generating captions.");
+    throw new Error(body?.error || "Something went wrong generating captions.");
+  }
+  if (!body) {
+    throw new Error("Got an unexpected response from the server. Please try again.");
   }
   return body; // { captions: [...], altText: "...", hashtags: [...] }
 }
