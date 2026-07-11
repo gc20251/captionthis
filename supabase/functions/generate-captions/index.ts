@@ -8,16 +8,19 @@
 //
 // Runs on Deno (Supabase Edge Functions). No SDK needed — just fetch.
 
+import { normalize, OUTPUT_TOOL, validateResult } from "./contract.ts";
+
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
-// Sonnet balances quality + cost for vision. Swap to the Haiku model string
-// for cheaper, faster runs once you've tuned the prompt.
+// Sonnet 4.6 balances quality + cost for vision, which matters for a
+// rate-limited demo. Swap to a Haiku model string for cheaper/faster runs, or
+// an Opus model for higher quality, once you've tuned the prompt.
 const MODEL = "claude-sonnet-4-6";
 
 // CORS so your React app (different origin in dev) can call this.
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*", // tighten to your domain in production
+  "Access-Control-Allow-Origin": "*", // tighten to your domain in production (Day 4)
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -37,25 +40,62 @@ function buildPrompt(tone: string): string {
     "",
     `Write the captions in this tone: ${toneText}`,
     "",
-    "Return ONLY a JSON object — no prose, no markdown, no code fences — with exactly this shape:",
-    "{",
-    '  "captions": [string, string, string],   // 3 distinct caption options',
-    '  "altText": string,                       // one descriptive, SEO-friendly alt-text sentence',
-    '  "hashtags": [string, ...]                // 8-12 relevant hashtags, each starting with #',
-    "}",
+    "Requirements:",
+    "- Exactly 3 distinct caption options.",
+    "- Alt-text describes what is literally in the frame, for accessibility and SEO — not marketing copy.",
+    "- 8 to 12 hashtags, each starting with '#', specific to the subject, no duplicates, no generic filler.",
     "",
-    "Rules: alt-text describes what is literally in the frame for accessibility and SEO.",
-    "Hashtags should be specific to the subject, not generic filler. No duplicates.",
+    "Call the emit_metadata tool with your answer.",
   ].join("\n");
 }
 
-// Pull the JSON object out of the model's reply, tolerating stray fences/text.
-function extractJson(text: string) {
-  const cleaned = text.replace(/```json/gi, "").replace(/```/g, "").trim();
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("No JSON found in model response");
-  return JSON.parse(cleaned.slice(start, end + 1));
+// One call to Anthropic. Returns the tool_use.input, or throws with a generic
+// message (details are logged server-side, never returned — R1/Day 4).
+async function callAnthropic(image: string, mediaType: string, tone: string): Promise<unknown> {
+  const anthropicRes = await fetch(ANTHROPIC_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY!,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1536,
+      tools: [OUTPUT_TOOL],
+      // Force the model to answer by calling our tool, so the reply is
+      // structured JSON rather than prose we'd have to parse.
+      tool_choice: { type: "tool", name: OUTPUT_TOOL.name },
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: image },
+            },
+            { type: "text", text: buildPrompt(tone) },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!anthropicRes.ok) {
+    const detail = await anthropicRes.text();
+    console.error("Anthropic request failed:", anthropicRes.status, detail);
+    throw new Error("upstream_error");
+  }
+
+  const data = await anthropicRes.json();
+  const toolBlock = (data.content ?? []).find(
+    (b: { type: string; name?: string }) => b.type === "tool_use" && b.name === OUTPUT_TOOL.name,
+  );
+  if (!toolBlock) {
+    console.error("No tool_use block in response:", JSON.stringify(data).slice(0, 500));
+    throw new Error("no_tool_use");
+  }
+  return toolBlock.input;
 }
 
 Deno.serve(async (req) => {
@@ -78,46 +118,23 @@ Deno.serve(async (req) => {
       return json({ error: "Send an image (base64) and its mediaType." }, 400);
     }
 
-    const anthropicRes = await fetch(ANTHROPIC_URL, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", media_type: mediaType, data: image },
-              },
-              { type: "text", text: buildPrompt(tone) },
-            ],
-          },
-        ],
-      }),
-    });
-
-    if (!anthropicRes.ok) {
-      const detail = await anthropicRes.text();
-      return json({ error: "Anthropic request failed.", detail }, 502);
+    // Try up to twice: model output is not a contract until validated. If the
+    // first result fails validation, retry once silently, then give up.
+    let lastErrors: string[] = [];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = normalize(await callAnthropic(image, mediaType, tone));
+      lastErrors = validateResult(result);
+      if (lastErrors.length === 0) {
+        return json(result, 200);
+      }
+      console.warn(`Validation failed (attempt ${attempt + 1}): ${lastErrors.join("; ")}`);
     }
 
-    const data = await anthropicRes.json();
-    const textBlock = (data.content ?? [])
-      .filter((b: { type: string }) => b.type === "text")
-      .map((b: { text: string }) => b.text)
-      .join("\n");
-
-    const result = extractJson(textBlock);
-    return json(result, 200);
-  } catch (err) {
-    return json({ error: "Could not generate captions.", detail: String(err) }, 500);
+    console.error("Giving up after retry. Last errors:", lastErrors.join("; "));
+    return json({ error: "Couldn't produce a valid result. Please try again." }, 502);
+  } catch (_err) {
+    // Never leak internals to the client — details are already logged above.
+    return json({ error: "Could not generate captions. Please try again." }, 500);
   }
 });
 
