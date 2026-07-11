@@ -25,24 +25,62 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const TONE_GUIDE: Record<string, string> = {
-  punchy: "short, scroll-stopping, high-energy. One line each.",
-  story: "warm and narrative, like a caption that sets a scene.",
-  minimal: "spare and understated. A few words, lots of restraint.",
-  professional: "polished and client-ready, suitable for a portfolio or website.",
+// A one-line tone description won't produce four distinguishable voices — the
+// model collapses "punchy" and "minimal" into each other (RISKS.md R4). Each
+// tone gets a description, exemplar captions to anchor the voice, and an
+// explicit "avoid" clause to push the tones apart.
+interface Tone {
+  description: string;
+  examples: string[];
+  avoid: string;
+}
+
+const TONE_GUIDE: Record<string, Tone> = {
+  punchy: {
+    description: "Short, scroll-stopping, high-energy. One line, built to stop a thumb.",
+    examples: ["Caught the light before it quit.", "This one hits different.", "No filter. Just timing."],
+    avoid: "Avoid full sentences longer than ~8 words, hedging, and anything that reads like a diary entry.",
+  },
+  story: {
+    description: "Warm and narrative — a caption that sets a scene and pulls the reader into a moment.",
+    examples: [
+      "We almost turned back at the ridge. Then the fog lifted and the whole valley just opened up.",
+      "She'd been chasing a sky like this all week.",
+    ],
+    avoid: "Avoid ad copy and hype words ('stunning', 'breathtaking'). Keep it human and specific, one to three sentences.",
+  },
+  minimal: {
+    description: "Spare and understated. A few words, heavy on restraint.",
+    examples: ["Morning.", "Still water.", "Late light, long shadows."],
+    avoid: "Avoid exclamation marks, stacked adjectives, and anything over ~5 words.",
+  },
+  professional: {
+    description: "Polished and client-ready — the voice of a photographer's portfolio or website.",
+    examples: [
+      "Golden-hour portrait session along the coastal bluffs.",
+      "Editorial lifestyle work for a Pacific Northwest travel brand.",
+    ],
+    avoid: "Avoid slang, emoji, exclamation marks, and casual first-person ('me and my...').",
+  },
 };
 
 function buildPrompt(tone: string): string {
-  const toneText = TONE_GUIDE[tone] ?? TONE_GUIDE.punchy;
+  const t = TONE_GUIDE[tone] ?? TONE_GUIDE.punchy;
   return [
     "You are a caption assistant for a working photographer.",
     "Look at the image and produce social-ready metadata.",
     "",
-    `Write the captions in this tone: ${toneText}`,
+    `TONE — write all 3 captions in this voice: ${t.description}`,
+    "Examples of this voice:",
+    ...t.examples.map((e) => `  · ${e}`),
+    t.avoid,
     "",
     "Requirements:",
-    "- Exactly 3 distinct caption options.",
-    "- Alt-text describes what is literally in the frame, for accessibility and SEO — not marketing copy.",
+    "- Exactly 3 distinct caption options, all in the tone above.",
+    "- Alt-text: describe what a sighted person would literally see — subjects, setting, action,",
+    "  notable light or color. It is an accessibility/SEO description, NOT a caption and NOT marketing.",
+    "    Good: \"A woman in a red jacket stands on a rocky ridge at sunset, a valley below.\"",
+    "    Bad:  \"Fearless adventurer conquers a breathtaking summit.\"",
     "- 8 to 12 hashtags, each starting with '#', specific to the subject, no duplicates, no generic filler.",
     "",
     "Call the emit_metadata tool with your answer.",

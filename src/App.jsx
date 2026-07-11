@@ -15,41 +15,51 @@ export default function App() {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [tone, setTone] = useState("punchy");
-  const [status, setStatus] = useState("idle"); // idle | loading | done | error
-  const [results, setResults] = useState(null);
-  const [error, setError] = useState(null);
+  const [cache, setCache] = useState({}); // { [toneId]: result } — per image, per tone
+  const [loadingTone, setLoadingTone] = useState(null); // tone currently generating, or null
+  const [error, setError] = useState(null); // error for the current attempt
   const [selectError, setSelectError] = useState(null); // bad file type/size at pick time
+
+  const currentResult = cache[tone];
+  const isLoading = loadingTone === tone;
 
   const onSelect = (f) => {
     setFile(f);
     setPreview(URL.createObjectURL(f));
-    setResults(null);
+    setCache({}); // a new image invalidates every tone's cached result
     setError(null);
     setSelectError(null);
-    setStatus("idle");
+    setLoadingTone(null);
   };
 
+  const selectTone = (id) => {
+    setTone(id);
+    setError(null); // an error on the previous tone shouldn't bleed into this one
+  };
+
+  // Generate (or regenerate) for the currently selected tone and cache it.
   const run = async () => {
-    if (!file) return;
-    setStatus("loading");
+    if (!file || loadingTone) return;
+    const forTone = tone; // pin the tone for this async call
+    setLoadingTone(forTone);
     setError(null);
     try {
-      const data = await generateCaptions(file, tone);
-      setResults(data);
-      setStatus("done");
+      const data = await generateCaptions(file, forTone);
+      setCache((prev) => ({ ...prev, [forTone]: data }));
     } catch (err) {
       setError(err.message);
-      setStatus("error");
+    } finally {
+      setLoadingTone(null);
     }
   };
 
   const reset = () => {
     setFile(null);
     setPreview(null);
-    setResults(null);
+    setCache({});
     setError(null);
     setSelectError(null);
-    setStatus("idle");
+    setLoadingTone(null);
   };
 
   return (
@@ -100,7 +110,7 @@ export default function App() {
               <Dropzone
                 onSelect={onSelect}
                 onError={setSelectError}
-                disabled={status === "loading"}
+                disabled={Boolean(loadingTone)}
               />
             )}
 
@@ -117,8 +127,9 @@ export default function App() {
                 {TONES.map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => setTone(t.id)}
-                    className={`rounded-sm border px-3 py-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-amber
+                    onClick={() => selectTone(t.id)}
+                    disabled={Boolean(loadingTone)}
+                    className={`rounded-sm border px-3 py-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-amber disabled:cursor-not-allowed disabled:opacity-50
                       ${
                         tone === t.id
                           ? "border-amber bg-amber/10 text-amber"
@@ -126,6 +137,11 @@ export default function App() {
                       }`}
                   >
                     {t.label}
+                    {cache[t.id] && tone !== t.id && (
+                      <span className="ml-1.5 text-amber/70" aria-label="cached">
+                        ·
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -133,24 +149,16 @@ export default function App() {
 
             <button
               onClick={run}
-              disabled={!file || status === "loading"}
+              disabled={!file || isLoading}
               className="w-full rounded-sm bg-amber py-3 font-medium text-ink transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {status === "loading" ? "Developing…" : "Generate"}
+              {isLoading ? "Developing…" : currentResult ? "Regenerate" : "Generate"}
             </button>
           </div>
 
           {/* Right: results */}
-          <div>
-            {status === "idle" && !results && (
-              <div className="flex h-full min-h-[16rem] items-center justify-center rounded-sm border border-dashed border-line">
-                <p className="px-8 text-center font-mono text-xs uppercase tracking-widest text-muted">
-                  Results will appear here
-                </p>
-              </div>
-            )}
-
-            {status === "loading" && (
+          <div aria-live="polite">
+            {isLoading && (
               <div className="flex h-full min-h-[16rem] items-center justify-center rounded-sm border border-line">
                 <div className="flex flex-col items-center gap-3">
                   <span className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-amber" />
@@ -159,7 +167,7 @@ export default function App() {
               </div>
             )}
 
-            {status === "error" && (
+            {!isLoading && error && (
               <div className="rounded-sm border border-amber/40 bg-amber/5 p-5">
                 <p className="font-mono text-xs uppercase tracking-widest text-amber">Couldn't generate</p>
                 <p className="mt-2 text-sm text-muted">{error}</p>
@@ -172,7 +180,15 @@ export default function App() {
               </div>
             )}
 
-            {status === "done" && results && <ResultCard results={results} />}
+            {!isLoading && !error && currentResult && <ResultCard results={currentResult} />}
+
+            {!isLoading && !error && !currentResult && (
+              <div className="flex h-full min-h-[16rem] items-center justify-center rounded-sm border border-dashed border-line">
+                <p className="px-8 text-center font-mono text-xs uppercase tracking-widest text-muted">
+                  {file ? "Press Generate to develop this voice" : "Results will appear here"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </main>
