@@ -4,14 +4,9 @@
 drafted by Claude from what's actually in the frame. Pick a voice (Punchy, Story, Minimal,
 Professional) and regenerate until it fits.
 
-Built with **React + Vite + Tailwind → Supabase Edge Function (Deno) → Anthropic (Claude vision)**,
-with the API key kept server-side and the endpoint rate-limited so it can be left running.
+**Live demo → [captionthis.gpagani20251.workers.dev](https://captionthis.gpagani20251.workers.dev)**
 
-<!-- Add app/docs/screenshot.png (a real generation) and uncomment: -->
-<!-- ![CaptionThis turning a photo into captions, alt-text, and hashtags](docs/screenshot.png) -->
-
-> **Screenshot goes here** — after deploying, drop a real generation (photo → 3 captions +
-> alt-text + hashtags) at `app/docs/screenshot.png` and uncomment the image line above.
+![CaptionThis turning a Golden Gate Bridge photo into story-voice captions, literal alt-text, and hashtags](docs/screenshot.png)
 
 ---
 
@@ -20,7 +15,8 @@ with the API key kept server-side and the endpoint rate-limited so it can be lef
 The browser **never** sees the Anthropic API key. The React app downscales the image, then
 sends it to a Supabase Edge Function that holds the key as a server secret and calls Claude.
 That one architectural choice — a server-side key proxy instead of calling Anthropic from the
-browser — is the difference between a tutorial demo and something you can put on the internet.
+browser — is the difference between a tutorial demo and something you can leave running on the
+public internet.
 
 A key in the browser is readable by anyone who opens devtools. A key behind an unauthenticated
 function is only slightly better: scrapers hit `/functions/v1/*` paths automatically and can loop
@@ -28,14 +24,18 @@ it until the bill runs up. So the proxy is also **origin-locked, rate-limited, a
 with an Anthropic console spend limit as the hard backstop.
 
 ```
-[ Browser / React ]                      [ Supabase Edge Function (Deno) ]           [ Anthropic ]
-  downscale to 1568px ──base64 JPEG──▶  origin allowlist · per-IP rate limit  ──▶  Claude vision
-  (never sees the key)                   payload/type caps · forced-JSON + validate   (Sonnet 4.6)
-         ▲                                             │                                   │
+[ Cloudflare Workers ]                   [ Supabase Edge Function (Deno) ]           [ Anthropic ]
+  React app (static)                     origin allowlist · per-IP rate limit  ──▶  Claude vision
+  downscale to 1568px ──base64 JPEG──▶   payload/type caps · forced-JSON + validate   (Sonnet 4.6)
+  (never sees the key)                                  │                                   │
+         ▲                                              │                                   │
          └──────────── validated { captions, altText, hashtags } ◀─────────────────────────┘
 
   ANTHROPIC_API_KEY lives only as a Supabase secret — it is never in the shipped bundle.
 ```
+
+At ~3K input tokens per image, a generation costs about **1.5¢** — the rate limit and spend
+limit exist so that number can never surprise anyone.
 
 ---
 
@@ -56,26 +56,35 @@ with an Anthropic console spend limit as the hard backstop.
   browsers), per-IP rate limit (10/hr via an atomic Postgres counter), and server-side re-checks of
   media type and payload size — the client's downscaling is never trusted.
 - **No leaks.** Error responses are generic; upstream detail is logged server-side only.
+- **Accessible.** WCAG AA contrast throughout, full keyboard path (real `<label>`-backed file
+  input, visible focus rings on every stop), and an `aria-live` results region.
 
 ---
 
-## Setup
+## Stack
 
-### 1. Install the frontend
+React + Vite + Tailwind, served as static assets from **Cloudflare Workers** (Git-connected —
+push to `main` deploys). Backend is a single **Supabase Edge Function** (Deno) fronting
+**Claude Sonnet 4.6** vision, with the per-IP rate limit in Postgres. CI builds every push.
+
+---
+
+## Run your own
+
+### 1. Frontend
 
 ```bash
 npm install
 cp .env.example .env.local   # fill in the two values (step 4)
+npm run dev
 ```
 
-### 2. Create a Supabase project
+### 2. Supabase project
 
-Make a free project at [supabase.com](https://supabase.com). Note your **Project URL** and
+Create a project at [supabase.com](https://supabase.com). Note your **Project URL** and
 **anon public key** (Project Settings → API).
 
-### 3. Deploy the function, set secrets, create the rate-limit table
-
-Install the Supabase CLI, then from `app/`:
+### 3. Function, secrets, rate-limit table
 
 ```bash
 supabase login
@@ -89,26 +98,22 @@ supabase db push                              # creates the rate_limit table (mi
 supabase functions deploy generate-captions
 ```
 
-### 4. Wire the frontend env vars
+### 4. Frontend env vars
 
-In `.env.local`:
+In `.env.local` (and `.env.production` for deployed builds — these are public client values):
 
 ```
 VITE_SUPABASE_URL=https://YOUR-PROJECT-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-public-key
 ```
 
-### 5. Run it
+### 5. Deploy the frontend
 
-```bash
-npm run dev
-```
+`wrangler.jsonc` is set up for Cloudflare Workers static assets — connect the repo in the
+Cloudflare dashboard (build `npm run build`, deploy `npx wrangler deploy`), or host `dist/`
+anywhere static. Then:
 
-Open the local URL, drop in a photo, pick a voice, hit **Generate**.
-
-### 6. Before going public
-
-- Add your deployed origin to `ALLOWED_ORIGINS` and redeploy the function.
+- Add your deployed origin to `ALLOWED_ORIGINS` (comma-separated) — no redeploy needed.
 - **Set an Anthropic console spend limit** — the hard backstop against runaway cost.
 
 ---
@@ -118,16 +123,18 @@ Open the local URL, drop in a photo, pick a voice, hit **Generate**.
 ```
 captionthis/
 ├── index.html
-├── package.json
-├── tailwind.config.js               # darkroom palette (ink / paper / amber)
-├── .env.example
+├── wrangler.jsonc                    # Cloudflare Workers static-assets config
+├── tailwind.config.js                # darkroom palette (ink / paper / amber)
+├── .env.example                      # local template   (public client values)
+├── .env.production                   # deployed builds  (public client values)
+├── .github/workflows/ci.yml          # build on every push/PR
 ├── src/
 │   ├── App.jsx                       # upload → tone → generate → results, per-tone cache
 │   ├── lib/
 │   │   ├── image.js                  # downscale + validate + encode (survives 12MP photos)
 │   │   └── generate.js               # prepares the image and calls the edge function
 │   └── components/
-│       ├── Dropzone.jsx              # drag-and-drop upload + inline validation
+│       ├── Dropzone.jsx              # label-backed drag-and-drop upload + inline validation
 │       └── ResultCard.jsx            # captions / alt-text / hashtags + copy buttons
 └── supabase/
     ├── config.toml
